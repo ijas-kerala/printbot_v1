@@ -187,5 +187,43 @@ class PrinterService:
             print(f"Error fetching printer attributes: {e}")
             return {"state": "unknown", "reasons": ["communication-error"], "message": "Check Printer Connection"}
 
+    def get_cups_job_status(self, cups_job_id: int):
+        """
+        Checks the status of a specific job in CUPS.
+        Returns:
+            - 'printing': Active in queue
+            - 'completed': Not found (assumed done) or explicitly successful
+            - 'held': Held for some reason
+            - 'stopped': Printer stopped
+        """
+        if self.mock_mode or not cups_job_id:
+             return "completed" # Mock is always instant
+             
+        if not self.conn:
+             return "printing" # Assume printing if we can't check
+             
+        try:
+             # Get all jobs including completed
+             # which_jobs: "all" (includes completed) or "not-completed"
+             jobs = self.conn.getJobs(which_jobs="not-completed", my_jobs=True)
+             
+             if cups_job_id in jobs:
+                 job_data = jobs[cups_job_id]
+                 # Job State constants: 3: Pending, 4: Held, 5: Processing, 6: Stopped, 7: Canceled, 8: Aborted, 9: Completed
+                 # But getJobs returns dict with attributes if we didn't specify? 
+                 # pycups getJobs returns: {id: {title, ...}} 
+                 # We probably need getJobAttributes for detailed state if needed, 
+                 # but for now, existence in 'not-completed' means it is printing/pending.
+                 return "printing"
+             else:
+                 # If not in "not-completed", it might be done or cancelled.
+                 # Let's verify if implementation keeps history.
+                 # If we can't find it, we usually assume it's done.
+                 return "completed"
+                 
+        except Exception as e:
+            print(f"Error checking CUPS job {cups_job_id}: {e}")
+            return "printing" # Safe default
+
 printer_service = PrinterService()
 

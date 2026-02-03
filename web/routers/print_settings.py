@@ -315,6 +315,16 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
          elif hw_status.get('state') == 'processing':
              display_text = "Printing... (Machine Busy)"
              
+         # [REAL-TIME FIX] Check specific CUPS job status
+         if job.cups_job_id:
+             cups_status = printer_service.get_cups_job_status(job.cups_job_id)
+             if cups_status == "completed":
+                 # Mark DB as completed so we stop polling
+                 job.status = "completed"
+                 display_text = "Done! Please collect your prints."
+                 is_done = True
+                 db.commit()
+             
     elif job.status == "completed":
          display_text = "Done! Please collect your prints."
          is_done = True
